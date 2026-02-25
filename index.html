@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RAM::SYSTEM_PROFILE // rogduo.me</title>
+<meta name="description" content="Ramachandra Kulkarni — Developer RPG Profile. Full-stack engineer, AI/ML enthusiast, and midnight debugger." />
+<style>
+/* ═══════════════════════════════════════════════════════════ */
+/*  FONTS                                                      */
+/* ═══════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@400;700;900&family=Press+Start+2P&display=swap');
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  CSS CUSTOM PROPERTIES                                      */
+/* ═══════════════════════════════════════════════════════════ */
+:root {
+  --bg:          #0a0e17;
+  --bg-card:     #111827;
+  --bg-card2:    #1a2234;
+  --cyan:        #00f0ff;
+  --green:       #39ff14;
+  --magenta:     #ff2eaa;
+  --yellow:      #ffe600;
+  --orange:      #ff6b2b;
+  --purple:      #a855f7;
+  --red:         #ff3860;
+  --text:        #c9d1d9;
+  --text-dim:    #6b7280;
+  --border:      #1e293b;
+  --glow-cyan:   0 0 12px rgba(0,240,255,.4);
+  --glow-green:  0 0 12px rgba(57,255,20,.4);
+  --glow-magenta:0 0 12px rgba(255,46,170,.4);
+  --font-mono:   'JetBrains Mono', 'Fira Code', monospace;
+  --font-display:'Orbitron', sans-serif;
+  --font-pixel:  'Press Start 2P', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  RESET & BASE                                               */
+/* ═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-mono);
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  MATRIX CANVAS BACKGROUND                                   */
+/* ═══════════════════════════════════════════════════════════ */
+#matrix-bg {
+  position: fixed; inset: 0;
+  z-index: 0;
+  opacity: .12;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  BOOT SEQUENCE OVERLAY                                      */
+/* ═══════════════════════════════════════════════════════════ */
+#boot-overlay {
+  position: fixed; inset: 0;
+  z-index: 9999;
+  background: #000;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: flex-start;
+  padding: 2rem 3rem;
+  font-family: var(--font-mono);
+  font-size: .85rem;
+  color: var(--green);
+  transition: opacity .6s ease;
+}
+#boot-overlay.fade-out { opacity: 0; pointer-events: none; }
+#boot-lines { white-space: pre-wrap; line-height: 1.7; }
+#boot-cursor {
+  display: inline-block;
+  width: .6em; height: 1.1em;
+  background: var(--green);
+  animation: blink .5s step-end infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blink { 50% { opacity:0; } }
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  SCANLINE OVERLAY                                           */
+/* ═══════════════════════════════════════════════════════════ */
+.scanlines {
+  position: fixed; inset: 0; z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,.06) 2px,
+    rgba(0,0,0,.06) 4px
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  MAIN WRAPPER                                               */
+/* ═══════════════════════════════════════════════════════════ */
+.main-wrapper {
+  position: relative; z-index: 2;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  opacity: 0;
+  transition: opacity .8s ease .3s;
+}
+.main-wrapper.visible { opacity: 1; }
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  TOP HUD BAR                                                */
+/* ═══════════════════════════════════════════════════════════ */
+.hud-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 2rem;
+  font-size: .7rem;
+  color: var(--text-dim);
+  background: rgba(17,24,39,.6);
+}
+.hud-bar .status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: var(--glow-green);
+  margin-right: .4rem;
+  animation: pulse-dot 2s ease infinite;
+}
+@keyframes pulse-dot { 0%,100%{opacity:1}50%{opacity:.4} }
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  CHARACTER CARD (HERO SECTION)                              */
+/* ═══════════════════════════════════════════════════════════ */
+.hero {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2rem;
+  align-items: start;
+  padding: 2rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+.hero::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta), var(--yellow));
+}
+
+/* avatar */
+.avatar-frame {
+  width: 150px; height: 150px;
+  border-radius: 8px;
+  border: 2px solid var(--cyan);
+  box-shadow: var(--glow-cyan);
+  overflow: hidden;
+  position: relative;
+}
+.avatar-frame img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  filter: saturate(1.1);
+}
+.avatar-level {
+  position: absolute; bottom: -1px; right: -1px;
+  background: var(--cyan);
+  color: #000;
+  font-family: var(--font-pixel);
+  font-size: .55rem;
+  padding: 3px 8px;
+  border-radius: 4px 0 0 0;
+  font-weight: 700;
+}
+
+/* info */
+.hero-info { display: flex; flex-direction: column; gap: .6rem; }
+.hero-info .class-tag {
+  display: inline-block;
+  font-family: var(--font-pixel);
+  font-size: .55rem;
+  color: var(--magenta);
+  border: 1px solid var(--magenta);
+  padding: 3px 10px;
+  border-radius: 3px;
+  width: fit-content;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.hero-info h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--cyan), var(--magenta));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+}
+.hero-info .subtitle {
+  font-size: .85rem;
+  color: var(--text-dim);
+}
+.hero-info .subtitle span { color: var(--green); }
+.hero-info .bio {
+  font-size: .8rem;
+  color: var(--text);
+  line-height: 1.6;
+  max-width: 520px;
+}
+.hero-info .bio .cursor-blink {
+  display: inline-block;
+  width: 2px; height: 1em;
+  background: var(--cyan);
+  animation: blink .6s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+
+/* XP bar under hero */
+.xp-bar-wrapper {
+  margin-top: .8rem;
+  display: flex; align-items: center; gap: .6rem;
+}
+.xp-label {
+  font-family: var(--font-pixel);
+  font-size: .5rem;
+  color: var(--yellow);
+  white-space: nowrap;
+}
+.xp-track {
+  flex: 1; height: 14px;
+  background: #1a1a2e;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  position: relative;
+}
+.xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--yellow), var(--orange));
+  border-radius: 3px;
+  width: 0%;
+  transition: width 2s cubic-bezier(.4,0,.2,1);
+  position: relative;
+}
+.xp-fill::after {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 4px,
+    rgba(255,255,255,.08) 4px,
+    rgba(255,255,255,.08) 8px
+  );
+}
+.xp-text {
+  font-size: .6rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  SECTION TITLES                                             */
+/* ═══════════════════════════════════════════════════════════ */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--cyan);
+  margin-bottom: 1.2rem;
+  display: flex; align-items: center; gap: .6rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.section-title::before {
+  content: '>';
+  color: var(--green);
+  font-family: var(--font-mono);
+}
+.section-title::after {
+  content: '';
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--border), transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  SKILL BARS (STAT SHEET)                                    */
+/* ═══════════════════════════════════════════════════════════ */
+.skills-section { margin-bottom: 2.5rem; }
+.skills-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.skill-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+  transition: border-color .3s, transform .2s;
+}
+.skill-item:hover {
+  border-color: var(--cyan);
+  transform: translateY(-2px);
+}
+.skill-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: .5rem;
+}
+.skill-name {
+  font-size: .75rem;
+  font-weight: 500;
+  display: flex; align-items: center; gap: .4rem;
+}
+.skill-name .icon { font-size: 1rem; }
+.skill-level {
+  font-family: var(--font-pixel);
+  font-size: .5rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #000;
+  font-weight: 700;
+}
+.skill-track {
+  height: 8px;
+  background: #1a1a2e;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.05);
+}
+.skill-fill {
+  height: 100%;
+  border-radius: 4px;
+  width: 0%;
+  transition: width 1.8s cubic-bezier(.4,0,.2,1);
+}
+.skill-xp {
+  font-size: .55rem;
+  color: var(--text-dim);
+  margin-top: .3rem;
+  text-align: right;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  TECH STACK INVENTORY                                       */
+/* ═══════════════════════════════════════════════════════════ */
+.inventory-section { margin-bottom: 2.5rem; }
+.inventory-grid {
+  display: flex; flex-wrap: wrap; gap: .6rem;
+}
+.inv-item {
+  background: var(--bg-card2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: .5rem .9rem;
+  font-size: .7rem;
+  display: flex; align-items: center; gap: .4rem;
+  cursor: default;
+  transition: all .2s;
+  position: relative;
+}
+.inv-item::before {
+  content: attr(data-rarity);
+  position: absolute; top: -6px; right: -4px;
+  font-family: var(--font-pixel);
+  font-size: .35rem;
+  padding: 1px 4px;
+  border-radius: 2px;
+  line-height: 1.2;
+}
+.inv-item[data-rarity="★★★"]::before { background: var(--yellow); color: #000; }
+.inv-item[data-rarity="★★"]::before  { background: var(--purple); color: #fff; }
+.inv-item[data-rarity="★"]::before   { background: var(--text-dim); color: #fff; }
+.inv-item:hover {
+  border-color: var(--cyan);
+  transform: scale(1.05);
+  box-shadow: var(--glow-cyan);
+}
+.inv-item .inv-icon { font-size: .9rem; }
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  ACHIEVEMENTS                                               */
+/* ═══════════════════════════════════════════════════════════ */
+.achievements-section { margin-bottom: 2.5rem; }
+.achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+.achievement {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem 1.2rem;
+  display: flex; align-items: flex-start; gap: 1rem;
+  transition: border-color .3s, box-shadow .3s;
+  cursor: default;
+}
+.achievement:hover {
+  border-color: var(--yellow);
+  box-shadow: 0 0 16px rgba(255,230,0,.15);
+}
+.achievement.locked { opacity: .4; filter: grayscale(.8); }
+.ach-icon {
+  font-size: 1.8rem;
+  flex-shrink: 0;
+  width: 48px; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,230,0,.08);
+  border-radius: 6px;
+  border: 1px solid rgba(255,230,0,.2);
+}
+.ach-info { flex: 1; }
+.ach-info h3 {
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--yellow);
+  margin-bottom: .25rem;
+}
+.ach-info p {
+  font-size: .65rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.ach-info .ach-xp {
+  font-family: var(--font-pixel);
+  font-size: .45rem;
+  color: var(--green);
+  margin-top: .3rem;
+  display: inline-block;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  QUEST LOG (PROJECTS)                                       */
+/* ═══════════════════════════════════════════════════════════ */
+.quests-section { margin-bottom: 2.5rem; }
+.quest-list { display: flex; flex-direction: column; gap: .8rem; }
+.quest {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem 1.2rem;
+  display: flex; align-items: center; gap: 1rem;
+  transition: border-color .3s;
+  text-decoration: none;
+  color: inherit;
+}
+.quest:hover { border-color: var(--green); }
+.quest-status {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.quest-status.complete { background: var(--green); box-shadow: var(--glow-green); }
+.quest-status.active   { background: var(--yellow); animation: pulse-dot 1.5s ease infinite; }
+.quest-info { flex: 1; }
+.quest-info h3 { font-size: .8rem; font-weight: 600; margin-bottom: .2rem; }
+.quest-info p  { font-size: .65rem; color: var(--text-dim); }
+.quest-reward {
+  font-family: var(--font-pixel);
+  font-size: .45rem;
+  color: var(--orange);
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  CONTACT / PARTY INVITE                                     */
+/* ═══════════════════════════════════════════════════════════ */
+.contact-section { margin-bottom: 2rem; }
+.contact-grid {
+  display: flex; flex-wrap: wrap; gap: .8rem;
+}
+.contact-link {
+  display: flex; align-items: center; gap: .5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .7rem 1.2rem;
+  font-size: .75rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: all .2s;
+}
+.contact-link:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  box-shadow: var(--glow-cyan);
+  transform: translateY(-2px);
+}
+.contact-link .link-icon { font-size: 1rem; }
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  FOOTER                                                     */
+/* ═══════════════════════════════════════════════════════════ */
+.footer {
+  text-align: center;
+  padding: 2rem 0;
+  font-size: .6rem;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border);
+}
+.footer .heart { color: var(--magenta); }
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  RESPONSIVE                                                 */
+/* ═══════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  .hero { grid-template-columns: 1fr; text-align: center; }
+  .hero-info { align-items: center; }
+  .hero-info .class-tag { margin: 0 auto; }
+  .avatar-frame { margin: 0 auto; width: 120px; height: 120px; }
+  .skills-grid { grid-template-columns: 1fr; }
+  .achievements-grid { grid-template-columns: 1fr; }
+  .hero-info h1 { font-size: 1.4rem; }
+  #boot-overlay { padding: 1.5rem; font-size: .7rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  MISC ANIMATIONS                                            */
+/* ═══════════════════════════════════════════════════════════ */
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-6px); }
+}
+.float { animation: float 3s ease infinite; }
+
+/* Particle container for the interactive click effect */
+.particle {
+  position: fixed;
+  pointer-events: none;
+  font-family: var(--font-pixel);
+  font-size: .55rem;
+  color: var(--green);
+  z-index: 1000;
+  animation: particle-up .9s ease forwards;
+}
+@keyframes particle-up {
+  0%   { opacity:1; transform: translateY(0) scale(1); }
+  100% { opacity:0; transform: translateY(-60px) scale(.6); }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  MATRIX BACKGROUND CANVAS                                 -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<canvas id="matrix-bg"></canvas>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  BOOT SEQUENCE                                            -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="boot-overlay">
+  <div id="boot-lines"></div><span id="boot-cursor"></span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  SCANLINES                                                -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="scanlines"></div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  MAIN CONTENT                                             -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="main-wrapper" id="main">
+
+  <!-- HUD BAR -->
+  <div class="hud-bar">
+    <div><span class="status-dot"></span> SYSTEM ONLINE — rogduo.me</div>
+    <div id="hud-datetime">SYS_TIME: --:--:--</div>
+  </div>
+
+  <!-- ════════ HERO / CHARACTER CARD ════════ -->
+  <section class="hero">
+    <div class="avatar-frame float">
+      <img src="https://avatars.githubusercontent.com/u/57028059?v=4" alt="Ramachandra Kulkarni avatar" />
+      <span class="avatar-level">LVL 42</span>
+    </div>
+    <div class="hero-info">
+      <span class="class-tag">⚔ Full-Stack Mage · AI Alchemist</span>
+      <h1>Ramachandra Kulkarni</h1>
+      <p class="subtitle">
+        <span>@ROGDuo</span> &nbsp;·&nbsp; aka <span>Ram</span> &nbsp;·&nbsp; Builder of Digital Worlds
+      </p>
+      <p class="bio" id="bio-text"></p>
+      <div class="xp-bar-wrapper">
+        <span class="xp-label">GLOBAL XP</span>
+        <div class="xp-track">
+          <div class="xp-fill" id="global-xp"></div>
+        </div>
+        <span class="xp-text">8,420 / 10,000 XP</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ SKILL BARS ════════ -->
+  <section class="skills-section">
+    <h2 class="section-title">Stat Sheet</h2>
+    <div class="skills-grid" id="skills-grid">
+      <!-- filled by JS -->
+    </div>
+  </section>
+
+  <!-- ════════ INVENTORY (TECH STACK) ════════ -->
+  <section class="inventory-section">
+    <h2 class="section-title">Inventory — Tech &amp; Tools</h2>
+    <div class="inventory-grid" id="inventory-grid">
+      <!-- filled by JS -->
+    </div>
+  </section>
+
+  <!-- ════════ ACHIEVEMENTS ════════ -->
+  <section class="achievements-section">
+    <h2 class="section-title">Achievements Unlocked</h2>
+    <div class="achievements-grid" id="achievements-grid">
+      <!-- filled by JS -->
+    </div>
+  </section>
+
+  <!-- ════════ QUEST LOG (PROJECTS) ════════ -->
+  <section class="quests-section">
+    <h2 class="section-title">Quest Log — Projects</h2>
+    <div class="quest-list" id="quest-list">
+      <!-- filled by JS -->
+    </div>
+  </section>
+
+  <!-- ════════ CONTACT / PARTY INVITE ════════ -->
+  <section class="contact-section">
+    <h2 class="section-title">Send a Party Invite</h2>
+    <div class="contact-grid">
+      <a class="contact-link" href="https://github.com/RamachandraKulkarni" target="_blank" rel="noopener">
+        <span class="link-icon">🐙</span> GitHub
+      </a>
+      <a class="contact-link" href="https://linkedin.com/in/" target="_blank" rel="noopener">
+        <span class="link-icon">💼</span> LinkedIn
+      </a>
+      <a class="contact-link" href="mailto:ram@rogduo.me">
+        <span class="link-icon">📧</span> Email
+      </a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <p>/* crafted with <span class="heart">♥</span> and too much caffeine — &copy; <span id="yr"></span> Ramachandra Kulkarni */</p>
+    <p style="margin-top:.3rem;font-family:var(--font-pixel);font-size:.4rem;color:var(--cyan);">SAVE GAME? [Y/N]</p>
+  </footer>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  JAVASCRIPT                                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<script>
+/* ═══════════════════════════════════════════════════════════ */
+/*  DATA                                                       */
+/* ═══════════════════════════════════════════════════════════ */
+const SKILLS = [
+  { name:'JavaScript',  icon:'🟨', pct:92, color:'#ffe600', lvl:'LEGENDARY' },
+  { name:'TypeScript',  icon:'🔷', pct:88, color:'#3178c6', lvl:'EPIC' },
+  { name:'Python',      icon:'🐍', pct:85, color:'#39ff14', lvl:'EPIC' },
+  { name:'React / Next',icon:'⚛️', pct:87, color:'#61dafb', lvl:'EPIC' },
+  { name:'Node.js',     icon:'🟢', pct:84, color:'#68a063', lvl:'EPIC' },
+  { name:'AI / ML',     icon:'🧠', pct:78, color:'#a855f7', lvl:'RARE' },
+  { name:'Three.js / 3D',icon:'🎮', pct:72, color:'#ff6b2b', lvl:'RARE' },
+  { name:'DevOps / CI',  icon:'🔧', pct:70, color:'#00f0ff', lvl:'RARE' },
+];
+
+const INVENTORY = [
+  { name:'JavaScript',  icon:'📜', rarity:'★★★' },
+  { name:'TypeScript',  icon:'🔷', rarity:'★★★' },
+  { name:'Python',      icon:'🐍', rarity:'★★★' },
+  { name:'React',       icon:'⚛️', rarity:'★★★' },
+  { name:'Next.js',     icon:'▲',  rarity:'★★★' },
+  { name:'Node.js',     icon:'🟢', rarity:'★★★' },
+  { name:'Express',     icon:'🚂', rarity:'★★' },
+  { name:'Django',      icon:'🎸', rarity:'★★' },
+  { name:'Flask',       icon:'🧪', rarity:'★★' },
+  { name:'Three.js',    icon:'🎮', rarity:'★★' },
+  { name:'PyTorch',     icon:'🔥', rarity:'★★' },
+  { name:'TensorFlow',  icon:'🧠', rarity:'★★' },
+  { name:'TailwindCSS', icon:'🎨', rarity:'★★' },
+  { name:'PostgreSQL',  icon:'🐘', rarity:'★★' },
+  { name:'Git',         icon:'🔀', rarity:'★' },
+  { name:'Docker',      icon:'🐳', rarity:'★' },
+  { name:'Vercel',      icon:'🚀', rarity:'★' },
+  { name:'Vite',        icon:'⚡', rarity:'★' },
+];
+
+const ACHIEVEMENTS = [
+  { icon:'🏆', title:'First Commit',          desc:'Pushed the inaugural commit to GitHub.',              xp:'+100 XP', unlocked:true },
+  { icon:'🐛', title:'Midnight Debugger',     desc:'Squashed a critical bug after 2 AM. Coffee required.',xp:'+250 XP', unlocked:true },
+  { icon:'🤖', title:'AI Alchemist',          desc:'Built an Audio Forgery Detection system with ML.',    xp:'+500 XP', unlocked:true },
+  { icon:'🌐', title:'Full-Stack Ascension',  desc:'Shipped end-to-end apps: frontend → backend → deploy.',xp:'+400 XP', unlocked:true },
+  { icon:'🎮', title:'3D Realm Explorer',     desc:'Rendered a 3D world with Three.js.',                  xp:'+300 XP', unlocked:true },
+  { icon:'💳', title:'FinTech Architect',     desc:'Engineered Horizon Banking Web App.',                 xp:'+350 XP', unlocked:true },
+  { icon:'🗳️', title:'Democracy Builder',    desc:'Created TeeDS Voting—decentralized decision-making.', xp:'+400 XP', unlocked:true },
+  { icon:'🔒', title:'???',                   desc:'This achievement is still locked. Keep exploring!',   xp:'??? XP',  unlocked:false },
+];
+
+const QUESTS = [
+  { title:'AudioForgeryDetection',           desc:'ML-powered audio tampering analysis · Python',          status:'complete', reward:'+500 XP', url:'https://github.com/RamachandraKulkarni/AudioForgeryDetection' },
+  { title:'Horizon Banking WebApp',          desc:'Full-stack fintech application · TypeScript',           status:'complete', reward:'+350 XP', url:'https://github.com/RamachandraKulkarni/Horizon-BankingWebApp' },
+  { title:'CarePulse Healthcare App',        desc:'Medical appointment scheduling system · TypeScript',    status:'complete', reward:'+300 XP', url:'https://github.com/RamachandraKulkarni/CarePulse-Healthcare-AppointmentApp' },
+  { title:'TeeDS Voting',                    desc:'Decentralized voting platform · TypeScript',            status:'complete', reward:'+400 XP', url:'https://github.com/RamachandraKulkarni/TeeDS_Voting' },
+  { title:'Space Allocation System',         desc:'Resource & space management tool · TypeScript',         status:'active',  reward:'+300 XP', url:'https://github.com/RamachandraKulkarni/Space_Allocation' },
+  { title:'ThreeJS First Project',           desc:'3D interactive experiments · JavaScript',               status:'complete', reward:'+200 XP', url:'https://github.com/RamachandraKulkarni/ThreeJS_First_Project' },
+  { title:'IOD',                             desc:'Latest build — in active development · JavaScript',     status:'active',  reward:'+??? XP', url:'https://github.com/RamachandraKulkarni/IOD' },
+];
+
+const BIO_TEXT = `Software developer who turns caffeine into production-grade code. ` +
+  `Specialising in full-stack TypeScript, Python, and AI/ML pipelines. ` +
+  `Currently grinding side-quests in 3D graphics, decentralized systems, and healthcare tech. ` +
+  `Motto: "Keep learning, keep shipping."`;
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  MATRIX RAIN                                                */
+/* ═══════════════════════════════════════════════════════════ */
+(function initMatrix() {
+  const c = document.getElementById('matrix-bg');
+  const ctx = c.getContext('2d');
+  let w, h, cols, drops;
+  const chars = 'ラムアイエムエルROGDUO01{}[]<>/\\=+*&^%$#@!;:'.split('');
+  function resize() {
+    w = c.width = window.innerWidth;
+    h = c.height = window.innerHeight;
+    cols = Math.floor(w / 16);
+    drops = Array(cols).fill(1);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  function draw() {
+    ctx.fillStyle = 'rgba(10,14,23,.18)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = '14px monospace';
+    for (let i = 0; i < cols; i++) {
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(ch, i * 16, drops[i] * 16);
+      if (drops[i] * 16 > h && Math.random() > .975) drops[i] = 0;
+      drops[i]++;
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  BOOT SEQUENCE                                              */
+/* ═══════════════════════════════════════════════════════════ */
+(async function boot() {
+  const el = document.getElementById('boot-lines');
+  const lines = [
+    '> BIOS v4.2.0 — ROGDuo Systems Inc.',
+    '> Initializing memory banks .......... OK',
+    '> Loading skill modules .............. OK',
+    '> Compiling achievement cache ........ OK',
+    '> Connecting to GitHub API ........... OK',
+    '> Mounting quest log ................. OK',
+    '> Decrypting profile payload ......... OK',
+    '',
+    '  ██████╗  ██████╗  ██████╗ ██████╗ ██╗   ██╗ ██████╗',
+    '  ██╔══██╗██╔═══██╗██╔════╝ ██╔══██╗██║   ██║██╔═══██╗',
+    '  ██████╔╝██║   ██║██║  ███╗██║  ██║██║   ██║██║   ██║',
+    '  ██╔══██╗██║   ██║██║   ██║██║  ██║██║   ██║██║   ██║',
+    '  ██║  ██║╚██████╔╝╚██████╔╝██████╔╝╚██████╔╝╚██████╔╝',
+    '  ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═════╝  ╚═════╝  ╚═════╝',
+    '',
+    '> System ready. Welcome back, Ram.',
+    '> Loading profile ...',
+  ];
+  for (const line of lines) {
+    el.textContent += line + '\n';
+    el.parentElement.scrollTop = el.parentElement.scrollHeight;
+    await sleep(Math.random() * 60 + 40);
+  }
+  await sleep(400);
+  const overlay = document.getElementById('boot-overlay');
+  overlay.classList.add('fade-out');
+  document.getElementById('main').classList.add('visible');
+  await sleep(600);
+  overlay.style.display = 'none';
+  animateAfterBoot();
+})();
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  RENDER SECTIONS                                            */
+/* ═══════════════════════════════════════════════════════════ */
+function animateAfterBoot() {
+  // Typewriter bio
+  typewriter(document.getElementById('bio-text'), BIO_TEXT, 22);
+
+  // Global XP bar
+  setTimeout(() => { document.getElementById('global-xp').style.width = '84.2%'; }, 300);
+
+  // Skills
+  renderSkills();
+
+  // Inventory
+  renderInventory();
+
+  // Achievements
+  renderAchievements();
+
+  // Quests
+  renderQuests();
+
+  // HUD clock
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // Footer year
+  document.getElementById('yr').textContent = new Date().getFullYear();
+}
+
+/* typewriter */
+function typewriter(el, text, speed) {
+  let i = 0;
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor-blink';
+  el.appendChild(cursor);
+  (function type() {
+    if (i < text.length) {
+      el.insertBefore(document.createTextNode(text[i]), cursor);
+      i++;
+      setTimeout(type, speed);
+    }
+  })();
+}
+
+/* skills */
+function renderSkills() {
+  const grid = document.getElementById('skills-grid');
+  SKILLS.forEach((s, idx) => {
+    const lvlColor = s.lvl === 'LEGENDARY' ? 'var(--yellow)' :
+                     s.lvl === 'EPIC'      ? 'var(--purple)' :
+                                              'var(--cyan)';
+    const div = document.createElement('div');
+    div.className = 'skill-item';
+    div.innerHTML = `
+      <div class="skill-header">
+        <span class="skill-name"><span class="icon">${s.icon}</span> ${s.name}</span>
+        <span class="skill-level" style="background:${lvlColor}">${s.lvl}</span>
+      </div>
+      <div class="skill-track">
+        <div class="skill-fill" style="background:${s.color}" data-pct="${s.pct}"></div>
+      </div>
+      <div class="skill-xp">${s.pct * 100} / 10,000 XP</div>`;
+    grid.appendChild(div);
+    setTimeout(() => {
+      div.querySelector('.skill-fill').style.width = s.pct + '%';
+    }, 400 + idx * 120);
+  });
+}
+
+/* inventory */
+function renderInventory() {
+  const grid = document.getElementById('inventory-grid');
+  INVENTORY.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'inv-item';
+    el.dataset.rarity = item.rarity;
+    el.innerHTML = `<span class="inv-icon">${item.icon}</span> ${item.name}`;
+    grid.appendChild(el);
+  });
+}
+
+/* achievements */
+function renderAchievements() {
+  const grid = document.getElementById('achievements-grid');
+  ACHIEVEMENTS.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'achievement' + (a.unlocked ? '' : ' locked');
+    div.innerHTML = `
+      <div class="ach-icon">${a.icon}</div>
+      <div class="ach-info">
+        <h3>${a.title}</h3>
+        <p>${a.desc}</p>
+        <span class="ach-xp">${a.xp}</span>
+      </div>`;
+    grid.appendChild(div);
+  });
+}
+
+/* quests */
+function renderQuests() {
+  const list = document.getElementById('quest-list');
+  QUESTS.forEach(q => {
+    const a = document.createElement('a');
+    a.className = 'quest';
+    a.href = q.url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.innerHTML = `
+      <span class="quest-status ${q.status}"></span>
+      <div class="quest-info">
+        <h3>${q.title}</h3>
+        <p>${q.desc}</p>
+      </div>
+      <span class="quest-reward">${q.reward}</span>`;
+    list.appendChild(a);
+  });
+}
+
+/* clock */
+function updateClock() {
+  const now = new Date();
+  document.getElementById('hud-datetime').textContent =
+    'SYS_TIME: ' + now.toLocaleTimeString('en-GB');
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  CLICK XP PARTICLES                                         */
+/* ═══════════════════════════════════════════════════════════ */
+document.addEventListener('click', e => {
+  const xp = ['+1 XP','+5 XP','+10 XP','CRIT!','💥','⚡'];
+  const span = document.createElement('span');
+  span.className = 'particle';
+  span.textContent = xp[Math.floor(Math.random() * xp.length)];
+  span.style.left = e.clientX + 'px';
+  span.style.top  = e.clientY + 'px';
+  if (span.textContent === 'CRIT!') span.style.color = 'var(--magenta)';
+  document.body.appendChild(span);
+  setTimeout(() => span.remove(), 900);
+});
+</script>
+
+</body>
+</html>
