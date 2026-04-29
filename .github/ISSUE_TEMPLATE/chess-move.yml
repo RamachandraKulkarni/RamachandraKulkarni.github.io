@@ -1,0 +1,32 @@
+name: ♟️ Make a chess move
+description: Play a move in the live profile chess game.
+title: "[chess-move] e2e4"
+labels: ["chess-move"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ♟️ Live Profile Chess
+
+        Submit a single move to play against the bot. The board on the
+        [profile README](../../blob/main/README.md#-live-profile-chess) will
+        update automatically once the workflow finishes (usually under a minute).
+
+        * Use **UCI** notation: `e2e4`, `g1f3`, `e7e8q` (the trailing letter is the promotion piece).
+        * Or use **SAN**: `Nf3`, `O-O`, `exd5`, `Qxh7#`.
+        * It's always **White**'s turn for human players — the bot plays Black.
+  - type: input
+    id: move
+    attributes:
+      label: Your move
+      description: A single UCI or SAN move. Whitespace, dashes and arrows are stripped.
+      placeholder: e2e4
+    validations:
+      required: true
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Fair play
+      options:
+        - label: I understand only one move will be applied per issue, and the bot will reply automatically.
+          required: true
