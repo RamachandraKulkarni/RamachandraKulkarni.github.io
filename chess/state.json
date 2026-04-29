@@ -1,0 +1,11 @@
+{
+  "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  "moves": [],
+  "ply": 0,
+  "status": "in_progress",
+  "result": null,
+  "last_player_move": null,
+  "last_bot_move": null,
+  "last_player": null,
+  "updated_at": "2026-04-29T07:41:27+00:00"
+}

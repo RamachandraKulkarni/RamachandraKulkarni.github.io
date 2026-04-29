@@ -1,0 +1,169 @@
+name: ♟️ Profile Chess
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  workflow_dispatch:
+    inputs:
+      move:
+        description: "Move to play (UCI like e2e4 or SAN like Nf3). Ignored if new_game is true."
+        required: false
+        default: ""
+      new_game:
+        description: "Reset the board to the starting position"
+        type: boolean
+        required: false
+        default: false
+
+# Only let one chess workflow run at a time so two concurrent issues can't
+# clobber each other's commits to chess/state.json.
+concurrency:
+  group: profile-chess
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  play:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # For issue-triggered runs, only react to chess-move issues.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.issue.labels.*.name, 'chess-move') ||
+      startsWith(github.event.issue.title, '[chess-move]')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Determine action
+        id: parse
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_NEW_GAME: ${{ github.event.inputs.new_game }}
+          DISPATCH_MOVE: ${{ github.event.inputs.move }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_USER: ${{ github.event.issue.user.login }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os, re
+
+          event = os.environ.get("EVENT_NAME", "")
+          new_game = "false"
+          move = ""
+          player = ""
+
+          if event == "workflow_dispatch":
+              if os.environ.get("DISPATCH_NEW_GAME", "").lower() == "true":
+                  new_game = "true"
+              else:
+                  move = os.environ.get("DISPATCH_MOVE", "").strip()
+              player = "@" + os.environ.get("GITHUB_ACTOR", "maintainer")
+          else:
+              body = os.environ.get("ISSUE_BODY", "") or ""
+              title = os.environ.get("ISSUE_TITLE", "") or ""
+              user = os.environ.get("ISSUE_USER", "") or ""
+              player = ("@" + user) if user else "anonymous"
+
+              # Issue forms render fields as "### Field\n\nvalue\n\n### Next..."
+              m = re.search(
+                  r"###\s*Your move\s*\n+([^\n#]+)", body, re.IGNORECASE
+              )
+              if m:
+                  move = m.group(1).strip()
+              else:
+                  # Fallback: strip the "[chess-move]" prefix from the title.
+                  move = re.sub(r"^\s*\[chess-move\]\s*", "", title,
+                                flags=re.IGNORECASE).strip()
+
+          # Sanitise: a chess move is short and only contains a small alphabet.
+          # Reject anything obviously not a move so we don't pass weird input
+          # to the python script as a CLI argument.
+          if move and not re.fullmatch(r"[A-Za-z0-9+#=\-\s]{1,16}", move):
+              move = ""
+
+          def out(k, v):
+              print(f"{k}={v}")
+
+          out("new_game", new_game)
+          out("move", move)
+          out("player", player)
+          out("should_run", "true" if (new_game == "true" or move) else "false")
+          PY
+
+      - name: No-op (nothing to do)
+        if: steps.parse.outputs.should_run != 'true'
+        run: echo "No move detected in this event; skipping."
+
+      - name: Reset game
+        if: steps.parse.outputs.should_run == 'true' && steps.parse.outputs.new_game == 'true'
+        run: python3 scripts/chess_game.py --new-game
+
+      - name: Apply move
+        if: steps.parse.outputs.should_run == 'true' && steps.parse.outputs.new_game != 'true'
+        env:
+          MOVE: ${{ steps.parse.outputs.move }}
+          PLAYER: ${{ steps.parse.outputs.player }}
+        run: python3 scripts/chess_game.py --move "$MOVE" --player "$PLAYER"
+
+      - name: Commit board update
+        if: steps.parse.outputs.should_run == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add chess/state.json chess/board.svg chess/history.md
+          if git diff --cached --quiet; then
+            echo "No board changes to commit."
+          else
+            if [ "${{ steps.parse.outputs.new_game }}" = "true" ]; then
+              msg="chess: reset to starting position"
+            else
+              msg="chess: ${{ steps.parse.outputs.player }} played ${{ steps.parse.outputs.move }}"
+            fi
+            git commit -m "$msg"
+            git push
+          fi
+
+      - name: Comment on issue
+        if: steps.parse.outputs.should_run == 'true' && github.event_name == 'issues'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'chess/comment.md';
+            let body = '✅ Move processed.';
+            if (fs.existsSync(path)) {
+              body = fs.readFileSync(path, 'utf8');
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Close issue
+        if: steps.parse.outputs.should_run == 'true' && github.event_name == 'issues'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed',
+              state_reason: 'completed',
+            });
